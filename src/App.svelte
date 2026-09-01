@@ -117,18 +117,12 @@
         </span>
         <div>
           <h1>PDF Wallet</h1>
-          <p class="subtitle">Your document wallet</p>
+          <p class="subtitle">Your free document wallet</p>
         </div>
       </div>
       <div class="stats">
         <span class="badge">{pdfs.length} PDF{pdfs.length !== 1 ? 's' : ''}</span>
-        <span class="badge badge-sm">{spaceUsed} used</span>
-        {#if !isInstalled}
-          <button class="install-button" on:click={installApp} title="Install PDF Wallet">
-            Install app
-          </button>
-        {/if}
-        <span class="badge badge-version" aria-label={`App version ${appVersion}`}>v{appVersion}</span>
+        <span class="badge badge-sm">{spaceUsed} used/5MB</span>
       </div>
     </div>
   </header>
@@ -185,6 +179,12 @@
           />
         {/each}
       {/if}
+      <!-- {#if !isInstalled}
+        <button class="install-button" on:click={installApp} title="Install PDF Wallet">
+          Install app
+        </button>
+      {/if} -->
+      <span class="badge badge-version center" aria-label={`App version ${appVersion}`}>App Version: {appVersion}</span>
     </section>
   </main>
 
@@ -293,6 +293,7 @@
     color: #a78bfa;
     background: rgba(167,139,250,0.1);
     border-color: rgba(167,139,250,0.2);
+    text-align: center;
   }
   .install-button {
     padding: 0.25rem 0.65rem;
