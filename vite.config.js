@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     svelte(),
     VitePWA({
@@ -34,6 +34,26 @@ export default defineConfig({
         cleanupOutdatedCaches: true
       }
     })
-  ]
-})
+  ],
+  resolve: {
+    conditions: mode === 'test' ? ['browser'] : [],
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    include: ['src/**/*.{test,spec}.{js,svelte}'],
+    setupFiles: ['./src/test/setup.js'],
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{js,svelte}', '!src/test/**'],
+      reporter: ['text', 'text-summary', 'html', 'html-spa'],
+      thresholds: {
+        lines: 100,
+        functions: 100,
+        branches: 100,
+        statements: 100
+      }
+    }
+  }
+}))
 

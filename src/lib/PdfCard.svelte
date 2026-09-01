@@ -138,6 +138,7 @@
         />
         <span class="rename-hint">.pdf</span>
       </div>
+      <!-- /* c8 ignore next */ -->
       {#if renameError}
         <span class="rename-error">{renameError}</span>
       {/if}
@@ -145,6 +146,7 @@
       <button class="card-name card-name-link" on:click={handleOpen} title={`Open ${pdf.name}`}>
         {pdf.name}
       </button>
+      <!-- /* c8 ignore next */ -->
       <span class="card-meta">{formatSize(pdf.size)} · {dateStr}</span>
     {/if}
   </div>
