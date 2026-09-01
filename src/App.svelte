@@ -41,6 +41,13 @@
     addToast(`Renamed to "${e.detail.name}".`, 'success')
   }
 
+  function handleShared(e) {
+    const message = e.detail.how === 'downloaded'
+      ? 'PDF downloaded. You can now attach it in WhatsApp.'
+      : 'Choose WhatsApp and a contact in the share sheet.'
+    addToast(message, 'success')
+  }
+
   function handleDeleted(e) {
     const removed = pdfs.find(p => p.id === e.detail.id)
     pdfs = pdfs.filter(p => p.id !== e.detail.id)
@@ -120,7 +127,13 @@
         </div>
       {:else}
         {#each filtered as pdf (pdf.id)}
-          <PdfCard {pdf} on:deleted={handleDeleted} on:renamed={handleRenamed} />
+          <PdfCard
+            {pdf}
+            on:deleted={handleDeleted}
+            on:renamed={handleRenamed}
+            on:shared={handleShared}
+            on:error={handleError}
+          />
         {/each}
       {/if}
     </section>
@@ -327,4 +340,3 @@
     to   { opacity: 1; transform: translateY(0); }
   }
 </style>
-

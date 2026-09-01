@@ -154,6 +154,22 @@
         </svg>
       </button>
 
+      <!-- Share through the device's native share sheet (for example, WhatsApp) -->
+      <button
+        class="btn-icon btn-share"
+        on:click={handleShare}
+        title="Share PDF"
+        aria-label={`Share ${pdf.name}`}
+        disabled={sharing}
+      >
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="18" cy="5" r="3" stroke="currentColor" stroke-width="1.5"/>
+          <circle cx="6" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/>
+          <circle cx="18" cy="19" r="3" stroke="currentColor" stroke-width="1.5"/>
+          <path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+
       <!-- Rename -->
       <button class="btn-icon btn-rename" on:click={startRename} title="Rename PDF">
         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -322,6 +338,16 @@
     color: #818cf8;
   }
   .btn-view:hover { background: rgba(99,102,241,0.3); }
+
+  .btn-share {
+    background: rgba(34,197,94,0.12);
+    color: #4ade80;
+  }
+  .btn-share:hover { background: rgba(34,197,94,0.25); }
+  .btn-share:disabled {
+    cursor: wait;
+    opacity: 0.6;
+  }
 
   .btn-rename {
     background: rgba(234,179,8,0.12);
