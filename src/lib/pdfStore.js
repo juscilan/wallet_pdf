@@ -163,7 +163,7 @@ export function formatSize(bytes) {
  * @returns {string} Human-readable size string
  */
 export function usedSpace() {
+  if (loadPdfs().length === 0) return formatSize(0)
   const raw = localStorage.getItem(STORAGE_KEY) || ''
   return formatSize(new Blob([raw]).size)
 }
-
