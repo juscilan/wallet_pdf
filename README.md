@@ -9,6 +9,8 @@
 [![Svelte](https://img.shields.io/badge/Svelte-4.x-FF3E00?style=flat-square&logo=svelte)](https://svelte.dev)
 [![Vite](https://img.shields.io/badge/Vite-5.x-646CFF?style=flat-square&logo=vite)](https://vitejs.dev)
 [![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8?style=flat-square&logo=pwa)](https://web.dev/progressive-web-apps/)
+[![Security](https://img.shields.io/badge/encryption-AES--256--GCM-00A98F?style=flat-square&logo=lock)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API)
+[![Tests](https://img.shields.io/badge/tests-84%20passing-22c55e?style=flat-square&logo=vitest)](https://vitest.dev)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 
 </div>
@@ -24,6 +26,7 @@
 | 📤 **Share PDFs** | Opens the device share sheet for targets such as WhatsApp; downloads the file when file sharing is unavailable |
 | 🗑️ **Delete PDFs** | Two-step delete confirmation to prevent accidental removal |
 | 🔗 **Open PDFs** | Click the filename to open the document in a new tab using a temporary Blob URL |
+| 🔐 **Encryption at rest** | PDF contents are encrypted with AES-256-GCM (Web Crypto) before hitting `localStorage` |
 | 🔍 **Search** | Real-time filter by file name |
 | 📊 **Storage stats** | Shows total PDF count and localStorage space used |
 | 🔔 **Toast notifications** | Success, error and info feedback for every action |
@@ -38,7 +41,9 @@
 - **[Svelte 4](https://svelte.dev)** — reactive UI framework with zero virtual DOM overhead
 - **[Vite 5](https://vitejs.dev)** — lightning-fast build tool and dev server
 - **[vite-plugin-pwa](https://vite-pwa-org.netlify.app)** — automatic Service Worker (Workbox) + Web App Manifest generation
-- **[localStorage](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage)** — browser-native persistence (PDFs stored as Base64 data URLs)
+- **[localStorage](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage)** — browser-native persistence (PDFs encrypted at rest with Web Crypto)
+- **[Vitest 1](https://vitest.dev)** + **[Testing Library for Svelte](https://testing-library.com/docs/svelte-testing-library/intro/)** — unit tests with 100% coverage thresholds
+- **[jsdom](https://github.com/jsdom/jsdom)** — DOM environment for tests
 
 No backend. No database. No external dependencies at runtime.
 
@@ -55,16 +60,21 @@ wallet_pdf/
 │       └── icon-512.png         # PWA icon (512×512)
 ├── src/
 │   ├── lib/
-│   │   ├── pdfStore.js          # localStorage CRUD + Base64 encoding
+│   │   ├── crypto.js            # AES-256-GCM encrypt/decrypt (Web Crypto)
+│   │   ├── pdfStore.js          # localStorage CRUD + encrypted persistence
 │   │   ├── PdfCard.svelte       # Individual PDF card actions
 │   │   └── UploadButton.svelte  # Drag-and-drop upload zone
 │   ├── App.svelte               # Root component: layout, search, toasts
-│   └── main.js                  # App entry point
+│   ├── main.js                  # App entry point
+│   └── test/
+│       ├── setup.js             # jest-dom + crypto shim for jsdom
+│       ├── UploadButtonStub.svelte
+│       └── PdfCardStub.svelte   # Components stubbed in App tests
 ├── CLAUDE.md                     # Project conventions and validation guidance
 ├── SKILL.md                      # PDF Wallet development workflow
 ├── TASK.md                       # Current task state
 ├── index.html
-├── vite.config.js               # Vite + PWA plugin config
+├── vite.config.js               # Vite + PWA + Vitest config
 └── package.json
 ```
 
@@ -125,20 +135,22 @@ On **Safari/iOS**: tap the Share button → *Add to Home Screen*.
 
 ## 🗄️ How Storage Works
 
-PDFs are serialized to Base64 data URLs using the [`FileReader` API](https://developer.mozilla.org/en-US/docs/Web/API/FileReader) and stored in `localStorage` under the key `pdf_wallet_v1`.
+PDFs are read with the [`FileReader` API](https://developer.mozilla.org/en-US/docs/Web/API/FileReader), serialized to Base64 data URLs, then **encrypted at rest** with **AES-256-GCM** (see [🛡️ Security at rest](#-security-at-rest)) before being stored in `localStorage` under the key `pdf_wallet_v1`.
 
 ```
 localStorage["pdf_wallet_v1"] = JSON.stringify([
   {
     id:       "pdf_1725000000000_abc123",
     name:     "contract.pdf",
-    size:     102400,         // bytes (original file size)
-    data:     "data:application/pdf;base64,...",
-    addedAt:  1725000000000   // Unix timestamp
+    size:     102400,                              // bytes (original file size)
+    data:     { iv: "aabb...", data: "3c9f..." },  // ciphertext (hex) + IV
+    addedAt:  1725000000000                        // Unix timestamp
   },
   ...
 ])
 ```
+
+Only the **ciphertext** is ever persisted. The original bytes are recovered transiently in memory when you open, preview or share a PDF, and are never written to disk in clear text.
 
 ### Storage limits
 
@@ -150,22 +162,80 @@ The app handles the `QuotaExceededError` gracefully and shows a user-friendly to
 
 ---
 
+## 🛡️ Security at rest
+
+The wallet uses the browser's native **[Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API)** to encrypt PDF contents before they touch `localStorage`:
+
+- **Algorithm:** AES-256-GCM (authenticated encryption — detects tampering as well as protecting confidentiality)
+- **Key:** a random 256-bit key per wallet, generated once and stored under `pdf_wallet_key`
+- **IV:** a fresh random 12-byte IV per document
+- **Tag:** 128-bit authentication tag validates integrity on every decrypt
+
+### What this protects against
+
+- ✓ Casual inspection of the raw localStorage to recover PDF contents
+- ✓ Tampering with the stored ciphertext without detection
+
+### Limitations (important)
+
+Because the key is stored in the same `localStorage` as the data, encryption does **not** protect the contents from:
+
+- ✗ **XSS** — any script running in the app can read the key and decrypt
+- ✗ **Full disk/local access** — anyone with read access to the browser profile can read the key and the ciphertext
+
+The primary goal here is **confidentiality of the bytes at rest** (defense in depth), not a password-gated vault. If you need the wallet to require a password before showing contents, the key should be derived from a password via PBKDF2 instead of being persisted.
+
+---
+
+## 🧪 Testing
+
+The suite uses [Vitest](https://vitest.dev), [Testing Library for Svelte](https://testing-library.com/docs/svelte-testing-library/intro/) and [jsdom](https://github.com/jsdom/jsdom). Coverage thresholds are configured at **100%** for statements, branches, functions and lines, enforced by the `coverage` script.
+
+```bash
+# Run tests once
+npm test
+
+# Watch mode
+npm run test:watch
+
+# Run tests and enforce coverage thresholds (writes HTML report to coverage/)
+npm run test:coverage
+```
+
+Key points:
+
+- `src/test/setup.js` registers jest-dom matchers and falls back to Node's Web Crypto so AES-GCM works under jsdom.
+- `App` renders lightweight `PdfCardStub.svelte` / `UploadButtonStub.svelte` components so its parent-level logic can be tested in isolation.
+- Existing Svelte-compiled template branches that the coverage remapper can't trace are marked with inline `c8 ignore` hints.
+
+---
+
 ## 🧩 Component Overview
 
 ### `pdfStore.js`
 
-Pure JavaScript module exposing:
+Pure JavaScript module (powered by `crypto.js`) exposing:
 
 | Function | Signature | Description |
 |---|---|---|
 | `loadPdfs()` | `→ Array` | Reads and parses the stored PDF list |
-| `addPdf(file)` | `File → Promise<entry>` | Reads, validates, deduplicates and saves a PDF |
+| `addPdf(file)` | `File → Promise<entry>` | Reads, validates, deduplicates, encrypts and saves a PDF |
 | `removePdf(id)` | `string → void` | Removes a PDF entry by ID |
 | `renamePdf(id, name)` | `string, string → string` | Validates and saves a filename, adding `.pdf` when needed |
-| `openPdf(pdf)` | `entry → void` | Creates a Blob URL and opens the PDF in a new tab |
-| `sharePdf(pdf)` | `entry → Promise<'shared' \| 'downloaded'>` | Shares the PDF through the Web Share API or downloads it as a fallback |
+| `openPdf(pdf)` | `entry → Promise<void>` | Decrypts, creates a Blob URL and opens the PDF in a new tab |
+| `sharePdf(pdf)` | `entry → Promise<'shared' \| 'downloaded'>` | Decrypts, then shares via the Web Share API or downloads it as a fallback |
 | `formatSize(bytes)` | `number → string` | Formats bytes as `B / KB / MB` |
 | `usedSpace()` | `→ string` | Returns the current wallet storage footprint |
+
+### `crypto.js`
+
+Web Crypto helper for **AES-256-GCM** at rest encryption:
+
+| Function | Signature | Description |
+|---|---|---|
+| `getOrCreateKey()` | `→ Promise<CryptoKey>` | Loads the persisted wallet key or generates and stores a new 256-bit key |
+| `encryptString(str)` | `string → Promise<{iv, data}>` | Encrypts a string with a fresh random IV, returning hex tokens |
+| `decryptString(token)` | `{iv, data} → Promise<string>` | Authenticated decryption of a token created by `encryptString` |
 
 ### `PdfCard.svelte`
 
