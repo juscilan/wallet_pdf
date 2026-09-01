@@ -29,11 +29,16 @@
   function handleAdded(e) {
     pdfs = [...pdfs, e.detail.pdf]
     refreshSpace()
-    addToast(`"${e.detail.pdf.name}" adicionado com sucesso!`, 'success')
+    addToast(`"${e.detail.pdf.name}" added successfully!`, 'success')
   }
 
   function handleError(e) {
     addToast(e.detail.message, 'error')
+  }
+
+  function handleRenamed(e) {
+    pdfs = pdfs.map(p => p.id === e.detail.id ? { ...p, name: e.detail.name } : p)
+    addToast(`Renamed to "${e.detail.name}".`, 'success')
   }
 
   function handleDeleted(e) {
@@ -115,7 +120,7 @@
         </div>
       {:else}
         {#each filtered as pdf (pdf.id)}
-          <PdfCard {pdf} on:deleted={handleDeleted} />
+          <PdfCard {pdf} on:deleted={handleDeleted} on:renamed={handleRenamed} />
         {/each}
       {/if}
     </section>

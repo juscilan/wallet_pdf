@@ -77,6 +77,26 @@ export function removePdf(id) {
 }
 
 /**
+ * Renames a PDF entry in the wallet.
+ * Trims whitespace and enforces a non-empty name.
+ * Automatically appends ".pdf" if the user omits it.
+ * @param {string} id - The PDF entry ID
+ * @param {string} newName - The desired new display name
+ * @throws {Error} if newName is empty after trimming
+ */
+export function renamePdf(id, newName) {
+  const trimmed = newName.trim()
+  if (!trimmed) throw new Error('File name cannot be empty.')
+  // Ensure the name always ends with .pdf
+  const finalName = trimmed.toLowerCase().endsWith('.pdf')
+    ? trimmed
+    : `${trimmed}.pdf`
+  const current = loadPdfs()
+  savePdfs(current.map(p => p.id === id ? { ...p, name: finalName } : p))
+  return finalName
+}
+
+/**
  * Opens a stored PDF in a new browser tab using a temporary Blob URL.
  * The URL is revoked after a short delay to free memory.
  * @param {{data: string, name: string}} pdf
@@ -92,6 +112,40 @@ export function openPdf(pdf) {
     setTimeout(() => URL.revokeObjectURL(url), 10000)
   }
 }
+
+/**
+ * Shares a PDF using the native Web Share API (files support).
+ * Falls back to triggering a direct download if sharing is unavailable.
+ *
+ * @param {{data: string, name: string}} pdf
+ * @returns {Promise<'shared'|'downloaded'>} How the file was delivered
+ * @throws {Error} if the user cancels or the browser blocks sharing
+ */
+export async function sharePdf(pdf) {
+  const base64 = pdf.data.split(',')[1]
+  const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
+  const blob = new Blob([bytes], { type: 'application/pdf' })
+  const file = new File([blob], pdf.name, { type: 'application/pdf' })
+
+  // Use the native share sheet when the browser supports file sharing
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    await navigator.share({
+      files: [file],
+      title: pdf.name,
+    })
+    return 'shared'
+  }
+
+  // Fallback: trigger a browser download so the user can share manually
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = pdf.name
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 5000)
+  return 'downloaded'
+}
+
 
 /**
  * Formats a byte count into a human-readable string (B / KB / MB).

@@ -1,17 +1,46 @@
 <script>
-  import { createEventDispatcher } from 'svelte'
-  import { openPdf, removePdf, formatSize } from './pdfStore.js'
+  import { createEventDispatcher, tick } from 'svelte'
+  import { openPdf, removePdf, renamePdf, sharePdf, formatSize } from './pdfStore.js'
 
   export let pdf
 
   const dispatch = createEventDispatcher()
+
+  // ── Delete state ─────────────────────────────────────────────────────────
   let confirmDelete = false
   let confirmTimer
 
+  // ── Rename state ─────────────────────────────────────────────────────────
+  let renaming = false
+  let renameValue = ''
+  let renameInput   // bound to the <input> element
+  let renameError = ''
+
+  // ── Share state ───────────────────────────────────────────────────────────
+  let sharing = false
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
   function handleOpen() {
     openPdf(pdf)
   }
 
+  async function handleShare() {
+    if (sharing) return
+    sharing = true
+    try {
+      const result = await sharePdf(pdf)
+      dispatch('shared', { id: pdf.id, how: result })
+    } catch (err) {
+      // User dismissed the share sheet — not an error worth surfacing
+      if (err.name !== 'AbortError') {
+        dispatch('error', { message: `Could not share: ${err.message}` })
+      }
+    } finally {
+      sharing = false
+    }
+  }
+
+  // Delete: first click arms, second click confirms
   function handleDelete() {
     if (!confirmDelete) {
       confirmDelete = true
@@ -28,12 +57,46 @@
     confirmDelete = false
   }
 
+  // Rename: enter edit mode
+  async function startRename() {
+    renameError = ''
+    // Strip .pdf extension for a cleaner editing experience
+    renameValue = pdf.name.replace(/\.pdf$/i, '')
+    renaming = true
+    await tick() // wait for the input to render
+    renameInput?.select()
+  }
+
+  function commitRename() {
+    renameError = ''
+    try {
+      const finalName = renamePdf(pdf.id, renameValue)
+      dispatch('renamed', { id: pdf.id, name: finalName })
+      // Update the local prop so the card reflects the change immediately
+      pdf = { ...pdf, name: finalName }
+      renaming = false
+    } catch (err) {
+      renameError = err.message
+      renameInput?.focus()
+    }
+  }
+
+  function cancelRename() {
+    renaming = false
+    renameError = ''
+  }
+
+  function onRenameKeydown(e) {
+    if (e.key === 'Enter')  commitRename()
+    if (e.key === 'Escape') cancelRename()
+  }
+
   $: dateStr = new Date(pdf.addedAt).toLocaleDateString('en-US', {
     day: '2-digit', month: 'short', year: 'numeric'
   })
 </script>
 
-<article class="card" class:confirm={confirmDelete}>
+<article class="card" class:confirm={confirmDelete} class:is-renaming={renaming}>
   <div class="card-icon">
     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -43,38 +106,84 @@
   </div>
 
   <div class="card-info">
-    <p class="card-name" title={pdf.name}>{pdf.name}</p>
-    <span class="card-meta">{formatSize(pdf.size)} · {dateStr}</span>
+    {#if renaming}
+      <!-- Inline rename field -->
+      <div class="rename-wrap" class:has-error={renameError}>
+        <input
+          bind:this={renameInput}
+          bind:value={renameValue}
+          class="rename-input"
+          type="text"
+          maxlength="120"
+          spellcheck="false"
+          aria-label="New file name"
+          on:keydown={onRenameKeydown}
+          on:blur={commitRename}
+        />
+        <span class="rename-hint">.pdf</span>
+      </div>
+      {#if renameError}
+        <span class="rename-error">{renameError}</span>
+      {/if}
+    {:else}
+      <p class="card-name" title={pdf.name}>{pdf.name}</p>
+      <span class="card-meta">{formatSize(pdf.size)} · {dateStr}</span>
+    {/if}
   </div>
 
   <div class="card-actions">
-    <button class="btn-icon btn-view" on:click={handleOpen} title="Open PDF">
-      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="1.5"/>
-        <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/>
-      </svg>
-    </button>
-
-    {#if confirmDelete}
-      <button class="btn-icon btn-confirm" on:click={handleDelete} title="Confirm delete">
+    {#if renaming}
+      <!-- Commit rename -->
+      <button class="btn-icon btn-confirm" on:click={commitRename} title="Save name">
         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
-      <button class="btn-icon btn-cancel" on:click={cancelDelete} title="Cancel">
+      <!-- Cancel rename -->
+      <button class="btn-icon btn-cancel" on:click={cancelRename} title="Cancel rename">
         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         </svg>
       </button>
     {:else}
-      <button class="btn-icon btn-delete" on:click={handleDelete} title="Delete PDF">
+      <!-- View -->
+      <button class="btn-icon btn-view" on:click={handleOpen} title="Open PDF">
         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          <path d="M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          <path d="M9 6V4h6v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="1.5"/>
+          <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/>
         </svg>
       </button>
+
+      <!-- Rename -->
+      <button class="btn-icon btn-rename" on:click={startRename} title="Rename PDF">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+
+      <!-- Delete (2-step) -->
+      {#if confirmDelete}
+        <button class="btn-icon btn-confirm" on:click={handleDelete} title="Confirm delete">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="btn-icon btn-cancel" on:click={cancelDelete} title="Cancel">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      {:else}
+        <button class="btn-icon btn-delete" on:click={handleDelete} title="Delete PDF">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M9 6V4h6v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      {/if}
     {/if}
   </div>
 </article>
@@ -108,6 +217,13 @@
     background: rgba(239,68,68,0.06);
   }
 
+  .card.is-renaming {
+    border-color: rgba(99,102,241,0.5);
+    background: rgba(99,102,241,0.07);
+    transform: none;
+  }
+
+  /* Icon */
   .card-icon {
     flex-shrink: 0;
     width: 42px;
@@ -121,6 +237,7 @@
   }
   .card-icon svg { width: 22px; height: 22px; }
 
+  /* Info */
   .card-info {
     flex: 1;
     min-width: 0;
@@ -139,6 +256,47 @@
     color: #64748b;
   }
 
+  /* Rename input */
+  .rename-wrap {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    border: 1px solid rgba(99,102,241,0.5);
+    border-radius: 7px;
+    padding: 0 0.5rem;
+    background: rgba(99,102,241,0.08);
+    transition: border-color 0.15s;
+  }
+  .rename-wrap.has-error {
+    border-color: rgba(239,68,68,0.6);
+    background: rgba(239,68,68,0.06);
+  }
+  .rename-input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #e2e8f0;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 0.35rem 0;
+    font-family: inherit;
+  }
+  .rename-hint {
+    font-size: 0.82rem;
+    color: #475569;
+    user-select: none;
+    flex-shrink: 0;
+  }
+  .rename-error {
+    display: block;
+    font-size: 0.72rem;
+    color: #f87171;
+    margin-top: 2px;
+  }
+
+  /* Actions */
   .card-actions {
     display: flex;
     gap: 0.4rem;
@@ -165,6 +323,12 @@
   }
   .btn-view:hover { background: rgba(99,102,241,0.3); }
 
+  .btn-rename {
+    background: rgba(234,179,8,0.12);
+    color: #fbbf24;
+  }
+  .btn-rename:hover { background: rgba(234,179,8,0.25); }
+
   .btn-delete {
     background: rgba(239,68,68,0.1);
     color: #f87171;
@@ -183,4 +347,3 @@
   }
   .btn-cancel:hover { background: rgba(255,255,255,0.12); }
 </style>
-
