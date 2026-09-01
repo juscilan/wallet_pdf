@@ -2,7 +2,7 @@
   "name": "wallet-pdf",
   "author": "Juscilan Moreto - www.juscilan.com",
   "private": true,
-  "version": "1.0.4",
+  "version": "2.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
