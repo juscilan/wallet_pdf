@@ -108,13 +108,18 @@
 </script>
 
 <article class="card" class:confirm={confirmDelete} class:is-renaming={renaming}>
-  <div class="card-icon">
+  <button
+    class="card-icon"
+    on:click={handleOpen}
+    title={`Open ${pdf.name}`}
+    aria-label={`Open ${pdf.name}`}
+  >
     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
       <path d="M14 2v6h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
       <path d="M9 13h6M9 17h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
-  </div>
+  </button>
 
   <div class="card-info">
     {#if renaming}
@@ -258,14 +263,23 @@
     flex-shrink: 0;
     width: 42px;
     height: 42px;
+    padding: 0;
+    border: none;
     display: flex;
     align-items: center;
     justify-content: center;
     background: rgba(99,102,241,0.15);
     border-radius: 10px;
     color: #818cf8;
+    cursor: pointer;
   }
   .card-icon svg { width: 22px; height: 22px; }
+  .card-icon:hover,
+  .card-icon:focus-visible {
+    background: rgba(99,102,241,0.25);
+    color: #a5b4fc;
+    outline: none;
+  }
 
   /* Info */
   .card-info {
