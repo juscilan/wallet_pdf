@@ -9,11 +9,31 @@
   let toasts = []
   let search = ''
   let spaceUsed = '0 B'
+  let installPrompt = null
+  let isInstalled = false
   const appVersion = packageInfo.version
 
   onMount(() => {
     pdfs = loadPdfs()
     spaceUsed = usedSpace()
+
+    isInstalled = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true
+    const captureInstallPrompt = (event) => {
+      event.preventDefault()
+      installPrompt = event
+    }
+    const markInstalled = () => {
+      isInstalled = true
+      installPrompt = null
+      addToast('PDF Wallet installed successfully!', 'success')
+    }
+
+    window.addEventListener('beforeinstallprompt', captureInstallPrompt)
+    window.addEventListener('appinstalled', markInstalled)
+    return () => {
+      window.removeEventListener('beforeinstallprompt', captureInstallPrompt)
+      window.removeEventListener('appinstalled', markInstalled)
+    }
   })
 
   function refreshSpace() {
@@ -63,6 +83,20 @@
     if (removed) addToast(`"${removed.name}" removido.`, 'info')
   }
 
+  async function installApp() {
+    if (!installPrompt) {
+      addToast('Use your browser menu to add PDF Wallet to your home screen.', 'info')
+      return
+    }
+
+    installPrompt.prompt()
+    const { outcome } = await installPrompt.userChoice
+    installPrompt = null
+    if (outcome === 'dismissed') {
+      addToast('Installation was cancelled.', 'info')
+    }
+  }
+
   $: filtered = pdfs.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase())
   )
@@ -89,6 +123,11 @@
       <div class="stats">
         <span class="badge">{pdfs.length} PDF{pdfs.length !== 1 ? 's' : ''}</span>
         <span class="badge badge-sm">{spaceUsed} used</span>
+        {#if !isInstalled}
+          <button class="install-button" on:click={installApp} title="Install PDF Wallet">
+            Install app
+          </button>
+        {/if}
         <span class="badge badge-version" aria-label={`App version ${appVersion}`}>v{appVersion}</span>
       </div>
     </div>
@@ -254,6 +293,23 @@
     color: #a78bfa;
     background: rgba(167,139,250,0.1);
     border-color: rgba(167,139,250,0.2);
+  }
+  .install-button {
+    padding: 0.25rem 0.65rem;
+    border: 1px solid rgba(99,102,241,0.4);
+    border-radius: 999px;
+    background: #6366f1;
+    color: white;
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .install-button:hover,
+  .install-button:focus-visible {
+    background: #4f46e5;
+    outline: 2px solid #a5b4fc;
+    outline-offset: 2px;
   }
 
   /* Main */
