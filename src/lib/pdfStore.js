@@ -1,3 +1,5 @@
+import { encryptString, decryptString } from './crypto.js'
+
 const STORAGE_KEY = 'pdf_wallet_v1'
 
 /**
@@ -35,7 +37,7 @@ export function addPdf(file) {
     }
 
     const reader = new FileReader()
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const entry = {
         id: `pdf_${Date.now()}_${Math.random().toString(36).slice(2)}`,
         name: file.name,
@@ -52,8 +54,9 @@ export function addPdf(file) {
           reject(new Error(`"${file.name}" is already in your wallet.`))
           return
         }
-        savePdfs([...current, entry])
-        resolve(entry)
+        const cipher = await encryptString(entry.data)
+        savePdfs([...current, { ...entry, data: cipher }])
+        resolve({ ...entry, data: cipher })
       } catch (err) {
         if (err.name === 'QuotaExceededError' || (err.message && err.message.includes('quota'))) {
           reject(new Error('Not enough storage space. Remove some PDFs and try again.'))
@@ -98,11 +101,13 @@ export function renamePdf(id, newName) {
 
 /**
  * Opens a stored PDF in a new browser tab using a temporary Blob URL.
- * The URL is revoked after a short delay to free memory.
- * @param {{data: string, name: string}} pdf
+ * Decrypts the stored ciphertext first. The URL is revoked after a short
+ * delay to free memory.
+ * @param {{data: {iv: string, data: string}, name: string}} pdf
  */
-export function openPdf(pdf) {
-  const base64 = pdf.data.split(',')[1]
+export async function openPdf(pdf) {
+  const dataUrl = await decryptString(pdf.data)
+  const base64 = dataUrl.split(',')[1]
   const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
   const blob = new Blob([bytes], { type: 'application/pdf' })
   const url = URL.createObjectURL(blob)
@@ -117,12 +122,13 @@ export function openPdf(pdf) {
  * Shares a PDF using the native Web Share API (files support).
  * Falls back to triggering a direct download if sharing is unavailable.
  *
- * @param {{data: string, name: string}} pdf
+ * @param {{data: {iv: string, data: string}, name: string}} pdf
  * @returns {Promise<'shared'|'downloaded'>} How the file was delivered
  * @throws {Error} if the user cancels or the browser blocks sharing
  */
 export async function sharePdf(pdf) {
-  const base64 = pdf.data.split(',')[1]
+  const dataUrl = await decryptString(pdf.data)
+  const base64 = dataUrl.split(',')[1]
   const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
   const blob = new Blob([bytes], { type: 'application/pdf' })
   const file = new File([blob], pdf.name, { type: 'application/pdf' })

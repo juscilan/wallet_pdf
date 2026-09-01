@@ -57,6 +57,20 @@ describe('PdfCard', () => {
     await waitFor(() => expect(openPdf).toHaveBeenCalledWith(pdf))
   })
 
+  it('dispatches an error when opening the PDF fails', async () => {
+    openPdf.mockRejectedValue(new Error('decrypt failed'))
+    const component = setup()
+    const error = vi.fn()
+    component.component.$on('error', error)
+    const btn = component.getByRole('button', { name: 'Open report.pdf' })
+    await fireEvent.click(btn)
+    await waitFor(() =>
+      expect(error).toHaveBeenCalledWith(
+        expect.objectContaining({ detail: { message: 'Could not open: decrypt failed' } })
+      )
+    )
+  })
+
   it('shares and dispatches shared when sharePdf succeeds', async () => {
     sharePdf.mockResolvedValue('shared')
     const component = setup()

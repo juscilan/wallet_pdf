@@ -21,8 +21,12 @@
   let sharing = false
 
   // ── Helpers ───────────────────────────────────────────────────────────────
-  function handleOpen() {
-    openPdf(pdf)
+  async function handleOpen() {
+    try {
+      await openPdf(pdf)
+    } catch (err) {
+      dispatch('error', { message: `Could not open: ${err.message}` })
+    }
   }
 
   async function handleShare() {

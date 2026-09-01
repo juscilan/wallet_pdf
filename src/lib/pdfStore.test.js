@@ -9,19 +9,27 @@ import {
   formatSize,
   usedSpace,
 } from './pdfStore.js'
+import { encryptString, decryptString } from './crypto.js'
 
 const STORAGE_KEY = 'pdf_wallet_v1'
 
-const validPdf = {
+const PLAINTEXT_DATA_URL = 'data:application/pdf;base64,JVBERi0x'
+
+let validPdf = {
   id: 'pdf_1',
   name: 'doc.pdf',
   size: 1234,
-  data: 'data:application/pdf;base64,JVBERi0x',
+  data: null,
   addedAt: 1000,
 }
 
-function seedStorage(entries) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries))
+// Seeds the wallet with entries whose `data` field is encrypted.
+async function seedStorage(entries) {
+  const encrypted = await Promise.all(
+    entries.map(async (e) => ({ ...e, data: await encryptString(e.data) })),
+  )
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(encrypted))
+  return encrypted
 }
 
 beforeEach(() => {
@@ -38,9 +46,11 @@ describe('loadPdfs', () => {
     expect(loadPdfs()).toEqual([])
   })
 
-  it('returns the parsed array when data exists', () => {
-    seedStorage([validPdf])
-    expect(loadPdfs()).toEqual([validPdf])
+  it('returns the parsed array when data exists', async () => {
+    await expect(seedStorage([{ ...validPdf, data: PLAINTEXT_DATA_URL }])).resolves.toBeDefined()
+    expect(loadPdfs()).toHaveLength(1)
+    expect(loadPdfs()[0].data).toHaveProperty('iv')
+    expect(loadPdfs()[0].data).toHaveProperty('data')
   })
 
   it('returns [] when stored JSON is malformed', () => {
@@ -74,14 +84,17 @@ describe('addPdf', () => {
     expect(mockReadAsDataURL).toHaveBeenCalledWith(file)
     expect(entry.name).toBe('doc.pdf')
     expect(entry.size).toBe(3)
-    expect(entry.data).toBe('data:application/pdf;base64,AAAA')
+    expect(entry.data).toHaveProperty('iv')
+    expect(entry.data).toHaveProperty('data')
     expect(entry.id).toMatch(/^pdf_\d+_/)
     expect(typeof entry.addedAt).toBe('number')
     expect(loadPdfs()).toEqual([entry])
+    // The stored ciphertext actually decrypts back to the original data URL.
+    expect(await decryptString(entry.data)).toBe('data:application/pdf;base64,AAAA')
   })
 
   it('prevents duplicate files by name + size', async () => {
-    seedStorage([{ ...validPdf, id: 'pdf_1', name: 'doc.pdf', size: 100 }])
+    await seedStorage([{ ...validPdf, id: 'pdf_1', name: 'doc.pdf', size: 100, data: PLAINTEXT_DATA_URL }])
     const file = new File([new Uint8Array(100)], 'doc.pdf', { type: 'application/pdf' })
     vi.spyOn(FileReader.prototype, 'readAsDataURL').mockImplementation(function () {
       this.onload({ target: { result: 'data:application/pdf;base64,AAAA' } })
@@ -140,16 +153,20 @@ describe('addPdf', () => {
 })
 
 describe('removePdf', () => {
-  it('removes the matching entry', () => {
-    seedStorage([validPdf, { ...validPdf, id: 'pdf_2' }])
+  it('removes the matching entry', async () => {
+    await seedStorage([
+      { ...validPdf, data: PLAINTEXT_DATA_URL },
+      { ...validPdf, id: 'pdf_2', data: PLAINTEXT_DATA_URL },
+    ])
     removePdf('pdf_1')
-    expect(loadPdfs()).toEqual([{ ...validPdf, id: 'pdf_2' }])
+    expect(loadPdfs()).toHaveLength(1)
+    expect(loadPdfs()[0].id).toBe('pdf_2')
   })
 
-  it('is a no-op when the id does not exist', () => {
-    seedStorage([validPdf])
+  it('is a no-op when the id does not exist', async () => {
+    await seedStorage([{ ...validPdf, data: PLAINTEXT_DATA_URL }])
     removePdf('nope')
-    expect(loadPdfs()).toEqual([validPdf])
+    expect(loadPdfs()).toHaveLength(1)
   })
 
   it('handles empty list', () => {
@@ -158,39 +175,39 @@ describe('removePdf', () => {
 })
 
 describe('renamePdf', () => {
-  it('trims whitespace from the provided name', () => {
-    seedStorage([validPdf])
+  it('trims whitespace from the provided name', async () => {
+    await seedStorage([{ ...validPdf, data: PLAINTEXT_DATA_URL }])
     const name = renamePdf('pdf_1', '  renamed  ')
     expect(name).toBe('renamed.pdf')
     expect(loadPdfs()[0].name).toBe('renamed.pdf')
   })
 
-  it('throws when the name is empty after trimming', () => {
-    seedStorage([validPdf])
+  it('throws when the name is empty after trimming', async () => {
+    await seedStorage([{ ...validPdf, data: PLAINTEXT_DATA_URL }])
     expect(() => renamePdf('pdf_1', '   ')).toThrow('File name cannot be empty.')
   })
 
-  it('auto-appends .pdf when missing', () => {
-    seedStorage([validPdf])
+  it('auto-appends .pdf when missing', async () => {
+    await seedStorage([{ ...validPdf, data: PLAINTEXT_DATA_URL }])
     const name = renamePdf('pdf_1', 'newname')
     expect(name).toBe('newname.pdf')
   })
 
-  it('preserves existing .pdf', () => {
-    seedStorage([validPdf])
+  it('preserves existing .pdf', async () => {
+    await seedStorage([{ ...validPdf, data: PLAINTEXT_DATA_URL }])
     const name = renamePdf('pdf_1', 'newname.pdf')
     expect(name).toBe('newname.pdf')
   })
 
-  it('detects .pdf case-insensitively', () => {
-    seedStorage([validPdf])
+  it('detects .pdf case-insensitively', async () => {
+    await seedStorage([{ ...validPdf, data: PLAINTEXT_DATA_URL }])
     const name = renamePdf('pdf_1', 'newname.PDF')
     expect(name).toBe('newname.PDF')
   })
 
-  it('returns the final name and leaves other entries untouched', () => {
-    const other = { ...validPdf, id: 'pdf_2', name: 'keep.pdf' }
-    seedStorage([validPdf, other])
+  it('returns the final name and leaves other entries untouched', async () => {
+    const other = { ...validPdf, id: 'pdf_2', name: 'keep.pdf', data: PLAINTEXT_DATA_URL }
+    await seedStorage([{ ...validPdf, data: PLAINTEXT_DATA_URL }, other])
     const name = renamePdf('pdf_1', 'first')
     expect(name).toBe('first.pdf')
     expect(loadPdfs()[1].name).toBe('keep.pdf')
@@ -211,12 +228,14 @@ describe('openPdf', () => {
     delete URL.revokeObjectURL
   })
 
-  it('opens a blob URL in a new tab and revokes it after the timeout', () => {
+  it('opens a blob URL in a new tab and revokes it after the timeout', async () => {
+    const token = await encryptString(PLAINTEXT_DATA_URL)
+    const pdf = { ...validPdf, data: token }
     vi.useFakeTimers()
     const { createObjectURL, revokeObjectURL } = mockURL()
     const winOpen = vi.spyOn(window, 'open').mockReturnValue({})
 
-    openPdf(validPdf)
+    await openPdf(pdf)
 
     expect(createObjectURL).toHaveBeenCalled()
     expect(winOpen).toHaveBeenCalledWith('blob:mock', '_blank')
@@ -224,12 +243,14 @@ describe('openPdf', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock')
   })
 
-  it('does not revoke when window.open returns null', () => {
+  it('does not revoke when window.open returns null', async () => {
+    const token = await encryptString(PLAINTEXT_DATA_URL)
+    const pdf = { ...validPdf, data: token }
     vi.useFakeTimers()
     const { revokeObjectURL } = mockURL()
     vi.spyOn(window, 'open').mockReturnValue(null)
 
-    openPdf(validPdf)
+    await openPdf(pdf)
 
     vi.advanceTimersByTime(10000)
     expect(revokeObjectURL).not.toHaveBeenCalled()
@@ -242,12 +263,17 @@ describe('sharePdf', () => {
     navigator.share = share
   }
 
+  async function preparePdf() {
+    const token = await encryptString(PLAINTEXT_DATA_URL)
+    return { ...validPdf, data: token }
+  }
+
   it('returns "shared" when native share is supported', async () => {
     setNavigator({
       canShare: () => true,
       share: vi.fn().mockResolvedValue(undefined),
     })
-    const result = await sharePdf(validPdf)
+    const result = await sharePdf(await preparePdf())
     expect(result).toBe('shared')
   })
 
@@ -265,7 +291,7 @@ describe('sharePdf', () => {
     })
     vi.useFakeTimers()
 
-    const result = await sharePdf(validPdf)
+    const result = await sharePdf(await preparePdf())
     expect(result).toBe('downloaded')
     expect(clickSpy).toHaveBeenCalled()
 
@@ -283,7 +309,7 @@ describe('sharePdf', () => {
     const revokeSpy = vi.fn()
     URL.revokeObjectURL = revokeSpy
 
-    const result = await sharePdf(validPdf)
+    const result = await sharePdf(await preparePdf())
     expect(result).toBe('downloaded')
     expect(clickSpy).toHaveBeenCalled()
     vi.advanceTimersByTime(5000)
@@ -313,15 +339,15 @@ describe('usedSpace', () => {
     expect(usedSpace()).toBe('0 B')
   })
 
-  it('returns the formatted size of the stored value when PDFs exist', () => {
-    seedStorage([validPdf])
+  it('returns the formatted size of the stored value when PDFs exist', async () => {
+    await seedStorage([{ ...validPdf, data: PLAINTEXT_DATA_URL }])
     const raw = localStorage.getItem(STORAGE_KEY)
     const expected = formatSize(new Blob([raw]).size)
     expect(usedSpace()).toBe(expected)
   })
 
-  it('handles a missing storage value while loadPdfs still reports PDFs', () => {
-    seedStorage([validPdf])
+  it('handles a missing storage value while loadPdfs still reports PDFs', async () => {
+    await seedStorage([{ ...validPdf, data: PLAINTEXT_DATA_URL }])
     const calls = []
     const originalGetItem = Storage.prototype.getItem
     Storage.prototype.getItem = function (key) {
