@@ -37,8 +37,14 @@
   }
 
   function handleRenamed(e) {
+    const { id, name } = e.detail
+    pdfs = pdfs.map(p => p.id === id ? { ...p, name } : p)
+    addToast(`Renamed to "${name}".`, 'success')
+  }
+
+  function handleRenameUndone(e) {
     pdfs = pdfs.map(p => p.id === e.detail.id ? { ...p, name: e.detail.name } : p)
-    addToast(`Renamed to "${e.detail.name}".`, 'success')
+    addToast(`Restored "${e.detail.name}".`, 'success')
   }
 
   function handleShared(e) {
@@ -131,6 +137,7 @@
             {pdf}
             on:deleted={handleDeleted}
             on:renamed={handleRenamed}
+            on:renameUndone={handleRenameUndone}
             on:shared={handleShared}
             on:error={handleError}
           />
@@ -328,7 +335,7 @@
     border-radius: 12px;
     font-size: 0.875rem;
     font-weight: 500;
-    animation: toastIn 0.25s ease;
+    animation: toastIn 0.5s ease;
     backdrop-filter: blur(8px);
   }
   .toast svg { width: 18px; height: 18px; flex-shrink: 0; }

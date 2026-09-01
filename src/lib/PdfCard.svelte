@@ -15,6 +15,7 @@
   let renameValue = ''
   let renameInput   // bound to the <input> element
   let renameError = ''
+  let undoName = ''
 
   // ── Share state ───────────────────────────────────────────────────────────
   let sharing = false
@@ -70,10 +71,12 @@
   function commitRename() {
     renameError = ''
     try {
+      const previousName = pdf.name
       const finalName = renamePdf(pdf.id, renameValue)
       dispatch('renamed', { id: pdf.id, name: finalName })
       // Update the local prop so the card reflects the change immediately
       pdf = { ...pdf, name: finalName }
+      undoName = previousName === finalName ? '' : previousName
       renaming = false
     } catch (err) {
       renameError = err.message
@@ -84,6 +87,14 @@
   function cancelRename() {
     renaming = false
     renameError = ''
+  }
+
+  function undoRename() {
+    if (!undoName) return
+    const restoredName = renamePdf(pdf.id, undoName)
+    pdf = { ...pdf, name: restoredName }
+    undoName = ''
+    dispatch('renameUndone', { id: pdf.id, name: restoredName })
   }
 
   function onRenameKeydown(e) {
@@ -126,7 +137,9 @@
         <span class="rename-error">{renameError}</span>
       {/if}
     {:else}
-      <p class="card-name" title={pdf.name}>{pdf.name}</p>
+      <button class="card-name card-name-link" on:click={handleOpen} title={`Open ${pdf.name}`}>
+        {pdf.name}
+      </button>
       <span class="card-meta">{formatSize(pdf.size)} · {dateStr}</span>
     {/if}
   </div>
@@ -146,40 +159,8 @@
         </svg>
       </button>
     {:else}
-      <!-- View -->
-      <button class="btn-icon btn-view" on:click={handleOpen} title="Open PDF">
-        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="1.5"/>
-          <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/>
-        </svg>
-      </button>
-
-      <!-- Share through the device's native share sheet (for example, WhatsApp) -->
-      <button
-        class="btn-icon btn-share"
-        on:click={handleShare}
-        title="Share PDF"
-        aria-label={`Share ${pdf.name}`}
-        disabled={sharing}
-      >
-        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="18" cy="5" r="3" stroke="currentColor" stroke-width="1.5"/>
-          <circle cx="6" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/>
-          <circle cx="18" cy="19" r="3" stroke="currentColor" stroke-width="1.5"/>
-          <path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-      </button>
-
-      <!-- Rename -->
-      <button class="btn-icon btn-rename" on:click={startRename} title="Rename PDF">
-        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </button>
-
-      <!-- Delete (2-step) -->
       {#if confirmDelete}
+        <!-- Confirmation mode hides the other actions. -->
         <button class="btn-icon btn-confirm" on:click={handleDelete} title="Confirm delete">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -191,6 +172,39 @@
           </svg>
         </button>
       {:else}
+        <!-- Share through the device's native share sheet (for example, WhatsApp) -->
+        <button
+          class="btn-icon btn-share"
+          on:click={handleShare}
+          title="Share PDF"
+          aria-label={`Share ${pdf.name}`}
+          disabled={sharing}
+        >
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="18" cy="5" r="3" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="6" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="18" cy="19" r="3" stroke="currentColor" stroke-width="1.5"/>
+            <path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+
+        <!-- Rename -->
+        <button class="btn-icon btn-rename" on:click={startRename} title="Rename PDF">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+
+        {#if undoName}
+          <button class="btn-icon btn-undo" on:click={undoRename} title="Undo rename">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 7 4 12l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M5 12h9a5 5 0 0 1 0 10h-1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </button>
+        {/if}
+
         <button class="btn-icon btn-delete" on:click={handleDelete} title="Delete PDF">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -267,6 +281,21 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .card-name-link {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: none;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+  }
+  .card-name-link:hover,
+  .card-name-link:focus-visible {
+    color: #a5b4fc;
+    text-decoration: underline;
+    outline: none;
+  }
   .card-meta {
     font-size: 0.75rem;
     color: #64748b;
@@ -333,12 +362,6 @@
   .btn-icon svg { width: 16px; height: 16px; }
   .btn-icon:active { transform: scale(0.92); }
 
-  .btn-view {
-    background: rgba(99,102,241,0.15);
-    color: #818cf8;
-  }
-  .btn-view:hover { background: rgba(99,102,241,0.3); }
-
   .btn-share {
     background: rgba(34,197,94,0.12);
     color: #4ade80;
@@ -354,6 +377,12 @@
     color: #fbbf24;
   }
   .btn-rename:hover { background: rgba(234,179,8,0.25); }
+
+  .btn-undo {
+    background: rgba(14,165,233,0.12);
+    color: #38bdf8;
+  }
+  .btn-undo:hover { background: rgba(14,165,233,0.25); }
 
   .btn-delete {
     background: rgba(239,68,68,0.1);
