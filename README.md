@@ -20,8 +20,10 @@
 | Feature | Description |
 |---|---|
 | ➕ **Add PDFs** | Click the upload zone or drag-and-drop one or multiple PDF files at once |
+| ✏️ **Rename PDFs** | Edit a filename inline; an Undo button on the card restores the previous name |
+| 📤 **Share PDFs** | Opens the device share sheet for targets such as WhatsApp; downloads the file when file sharing is unavailable |
 | 🗑️ **Delete PDFs** | Two-step delete confirmation to prevent accidental removal |
-| 👁️ **View PDFs** | Opens the document in a new tab using a temporary Blob URL |
+| 🔗 **Open PDFs** | Click the filename to open the document in a new tab using a temporary Blob URL |
 | 🔍 **Search** | Real-time filter by file name |
 | 📊 **Storage stats** | Shows total PDF count and localStorage space used |
 | 🔔 **Toast notifications** | Success, error and info feedback for every action |
@@ -54,10 +56,13 @@ wallet_pdf/
 ├── src/
 │   ├── lib/
 │   │   ├── pdfStore.js          # localStorage CRUD + Base64 encoding
-│   │   ├── PdfCard.svelte       # Individual PDF card (view + delete)
+│   │   ├── PdfCard.svelte       # Individual PDF card actions
 │   │   └── UploadButton.svelte  # Drag-and-drop upload zone
 │   ├── App.svelte               # Root component: layout, search, toasts
 │   └── main.js                  # App entry point
+├── CLAUDE.md                     # Project conventions and validation guidance
+├── SKILL.md                      # PDF Wallet development workflow
+├── TASK.md                       # Current task state
 ├── index.html
 ├── vite.config.js               # Vite + PWA plugin config
 └── package.json
@@ -156,7 +161,9 @@ Pure JavaScript module exposing:
 | `loadPdfs()` | `→ Array` | Reads and parses the stored PDF list |
 | `addPdf(file)` | `File → Promise<entry>` | Reads, validates, deduplicates and saves a PDF |
 | `removePdf(id)` | `string → void` | Removes a PDF entry by ID |
+| `renamePdf(id, name)` | `string, string → string` | Validates and saves a filename, adding `.pdf` when needed |
 | `openPdf(pdf)` | `entry → void` | Creates a Blob URL and opens the PDF in a new tab |
+| `sharePdf(pdf)` | `entry → Promise<'shared' \| 'downloaded'>` | Shares the PDF through the Web Share API or downloads it as a fallback |
 | `formatSize(bytes)` | `number → string` | Formats bytes as `B / KB / MB` |
 | `usedSpace()` | `→ string` | Returns the current wallet storage footprint |
 
@@ -164,8 +171,10 @@ Pure JavaScript module exposing:
 
 Displays one PDF entry with:
 - File icon, name (truncated with ellipsis) and metadata (size + date added)
-- **View** button → calls `openPdf()`
-- **Delete** button → 2-step confirmation (click once to arm, click again to confirm; auto-resets after 3 s)
+- Clickable filename → calls `openPdf()`
+- **Share** button → uses the native share sheet (including WhatsApp when available) or downloads the file as a fallback
+- **Rename** button → saves an inline filename edit; **Undo** restores the prior filename
+- **Delete** button → 2-step confirmation. While confirming, only Confirm and Cancel are shown; it auto-resets after 3 seconds.
 
 ### `UploadButton.svelte`
 
@@ -215,4 +224,3 @@ All data stays **100% on your device**. No files are ever uploaded to a server, 
 ## 📜 License
 
 [MIT](LICENSE) © 2026 — feel free to use, modify and distribute.
-
