@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte'
+  import packageInfo from '../package.json'
   import PdfCard from './lib/PdfCard.svelte'
   import UploadButton from './lib/UploadButton.svelte'
   import { loadPdfs, usedSpace } from './lib/pdfStore.js'
@@ -8,6 +9,7 @@
   let toasts = []
   let search = ''
   let spaceUsed = '0 B'
+  const appVersion = packageInfo.version
 
   onMount(() => {
     pdfs = loadPdfs()
@@ -87,6 +89,7 @@
       <div class="stats">
         <span class="badge">{pdfs.length} PDF{pdfs.length !== 1 ? 's' : ''}</span>
         <span class="badge badge-sm">{spaceUsed} used</span>
+        <span class="badge badge-version" aria-label={`App version ${appVersion}`}>v{appVersion}</span>
       </div>
     </div>
   </header>
@@ -246,6 +249,12 @@
     border: 1px solid rgba(99,102,241,0.2);
   }
   .badge-sm { font-size: 0.7rem; color: #64748b; background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.07); }
+  .badge-version {
+    font-size: 0.7rem;
+    color: #a78bfa;
+    background: rgba(167,139,250,0.1);
+    border-color: rgba(167,139,250,0.2);
+  }
 
   /* Main */
   main {
