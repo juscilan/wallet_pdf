@@ -128,7 +128,6 @@
             Install app
           </button>
         {/if}
-        <span class="badge badge-version" aria-label={`App version ${appVersion}`}>v{appVersion}</span>
       </div>
     </div>
   </header>
@@ -187,6 +186,10 @@
       {/if}
     </section>
   </main>
+
+  <footer class="app-footer" aria-label={`App version ${appVersion}`}>
+    v{appVersion}
+  </footer>
 
   <!-- Toast notifications -->
   <div class="toast-container" aria-live="polite">
@@ -288,6 +291,12 @@
     border: 1px solid rgba(99,102,241,0.2);
   }
   .badge-sm { font-size: 0.7rem; color: #64748b; background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.07); }
+  .app-footer {
+    padding: 0.75rem 1rem 1.5rem;
+    color: #64748b;
+    font-size: 0.7rem;
+    text-align: center;
+  }
   .badge-version {
     font-size: 0.7rem;
     color: #a78bfa;
@@ -314,6 +323,7 @@
 
   /* Main */
   main {
+    flex: 1;
     max-width: 680px;
     margin: 0 auto;
     padding: 1.5rem 1rem 6rem;
