@@ -16,6 +16,7 @@
   let renameInput   // bound to the <input> element
   let renameError = ''
   let undoName = ''
+  let undoTimer
 
   // ── Share state ───────────────────────────────────────────────────────────
   let sharing = false
@@ -80,7 +81,11 @@
       dispatch('renamed', { id: pdf.id, name: finalName })
       // Update the local prop so the card reflects the change immediately
       pdf = { ...pdf, name: finalName }
+      clearTimeout(undoTimer)
       undoName = previousName === finalName ? '' : previousName
+      if (undoName) {
+        undoTimer = setTimeout(() => { undoName = '' }, 5000)
+      }
       renaming = false
     } catch (err) {
       renameError = err.message
@@ -95,6 +100,7 @@
 
   function undoRename() {
     if (!undoName) return
+    clearTimeout(undoTimer)
     const restoredName = renamePdf(pdf.id, undoName)
     pdf = { ...pdf, name: restoredName }
     undoName = ''
