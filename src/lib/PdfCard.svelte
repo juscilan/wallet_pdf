@@ -17,6 +17,7 @@
   let renameError = ''
   let undoName = ''
   let undoTimer
+  let canceling = false
 
   // ── Share state ───────────────────────────────────────────────────────────
   let sharing = false
@@ -65,6 +66,7 @@
 
   // Rename: enter edit mode
   async function startRename() {
+    canceling = false
     renameError = ''
     // Strip .pdf extension for a cleaner editing experience
     renameValue = pdf.name.replace(/\.pdf$/i, '')
@@ -74,6 +76,7 @@
   }
 
   function commitRename() {
+    if (canceling) return
     renameError = ''
     try {
       const previousName = pdf.name
@@ -94,6 +97,7 @@
   }
 
   function cancelRename() {
+    canceling = true
     renaming = false
     renameError = ''
   }
@@ -170,7 +174,12 @@
         </svg>
       </button>
       <!-- Cancel rename -->
-      <button class="btn-icon btn-cancel" on:click={cancelRename} title="Cancel rename">
+      <button
+        class="btn-icon btn-cancel"
+        on:mousedown|preventDefault={cancelRename}
+        on:click={cancelRename}
+        title="Cancel rename"
+      >
         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         </svg>
