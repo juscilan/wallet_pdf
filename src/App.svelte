@@ -186,9 +186,12 @@
           Install app
         </button>
       {/if} -->
-      <span class="badge badge-version center" aria-label={`App version ${appVersion}`}>App Version: {appVersion}</span>
-    </section>
+      </section>
   </main>
+
+  <footer class="footer">
+    <p aria-label={`App version ${appVersion}`}>© {new Date().getFullYear()} Juscilan Moreto · v{appVersion}</p>
+  </footer>
 
   <!-- Toast notifications -->
   <div class="toast-container" aria-live="polite">
@@ -290,13 +293,6 @@
     border: 1px solid rgba(99,102,241,0.2);
   }
   .badge-sm { font-size: 0.7rem; color: #64748b; background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.07); }
-  .badge-version {
-    font-size: 0.7rem;
-    color: #a78bfa;
-    background: rgba(167,139,250,0.1);
-    border-color: rgba(167,139,250,0.2);
-    text-align: center;
-  }
   .install-button {
     padding: 0.25rem 0.65rem;
     border: 1px solid rgba(99,102,241,0.4);
@@ -360,6 +356,16 @@
     flex-direction: column;
     gap: 0.65rem;
   }
+
+  /* Footer */
+  .footer {
+    margin-top: auto;
+    padding: 1rem;
+    text-align: center;
+    color: #475569;
+    font-size: 0.75rem;
+  }
+  .footer p { margin: 0; }
 
   /* Empty */
   .empty {

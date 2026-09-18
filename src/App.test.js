@@ -60,7 +60,7 @@ describe('App', () => {
     expect(getByText('PDF Wallet')).toBeInTheDocument()
     expect(getByText('Your free document wallet')).toBeInTheDocument()
     expect(getByText('0 B used/5MB')).toBeInTheDocument()
-    expect(getByText(new RegExp(`App Version: ${packageInfo.version.replace('.', '\\.')}`))).toBeInTheDocument()
+    expect(getByText(new RegExp(`v${packageInfo.version.replace('.', '\\.')}`))).toBeInTheDocument()
     expect(getByText('0 PDFs')).toBeInTheDocument()
   })
 
